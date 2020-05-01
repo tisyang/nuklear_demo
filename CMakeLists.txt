@@ -5,12 +5,16 @@ set(PROGRAM nuklear_demo)
 # make sure could include ui.h and ui.c
 include_directories(.)
 
+add_subdirectory(tinyfiledialogs)
+include_directories(tinyfiledialogs)
+
 if(WIN32)
 add_executable(${PROGRAM} ../nuklear/gdip.c)
 target_link_libraries(${PROGRAM}
     gdiplus
     user32
     shlwapi
+    tinyfiledialogs
 )
 else()
 find_package(PkgConfig REQUIRED)
@@ -24,5 +28,6 @@ target_link_libraries(${PROGRAM}
     ${XFT_LIBRARIES}
     X11
     m
+    tinyfiledialogs
 )
 endif()
