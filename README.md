@@ -28,4 +28,4 @@ make
 ```
 运行截图 (Debian KDE)
 
-![nuklear_demo](nuklear_demo.gif)
+![nuklear_demo](https://raw.githubusercontent.com/tisyang/nuklear_demo/master/nuklear_demo.gif)
