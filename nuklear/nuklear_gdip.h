@@ -47,6 +47,8 @@ NK_API void nk_gdip_image_free(struct nk_image image);
 
 #include <stdlib.h>
 #include <malloc.h>
+#define _USE_MATH_DEFINES
+#include <math.h>
 
 /* manually declare everything GDI+ needs, because
    GDI+ headers are not usable from C */
@@ -90,7 +92,7 @@ typedef enum {
     StringFormatFlagsMeasureTrailingSpaces   = 0x00000800,
     StringFormatFlagsNoWrap                  = 0x00001000,
     StringFormatFlagsLineLimit               = 0x00002000,
-    StringFormatFlagsNoClip                  = 0x00004000 
+    StringFormatFlagsNoClip                  = 0x00004000
 } StringFormatFlags;
 
 typedef enum
@@ -270,25 +272,25 @@ GdipSetStringFormatFlags(GpStringFormat *format, INT flags);
 GpStatus WINGDIPAPI
 GdipDeleteStringFormat(GpStringFormat *format);
 
-GpStatus WINGDIPAPI 
-GdipPrivateAddMemoryFont(GpFontCollection* fontCollection, 
+GpStatus WINGDIPAPI
+GdipPrivateAddMemoryFont(GpFontCollection* fontCollection,
                          GDIPCONST void* memory, INT length);
 
-GpStatus WINGDIPAPI 
-GdipPrivateAddFontFile(GpFontCollection* fontCollection, 
+GpStatus WINGDIPAPI
+GdipPrivateAddFontFile(GpFontCollection* fontCollection,
                        GDIPCONST WCHAR* filename);
 
-GpStatus WINGDIPAPI 
+GpStatus WINGDIPAPI
 GdipNewPrivateFontCollection(GpFontCollection** fontCollection);
 
-GpStatus WINGDIPAPI 
+GpStatus WINGDIPAPI
 GdipDeletePrivateFontCollection(GpFontCollection** fontCollection);
 
-GpStatus WINGDIPAPI 
-GdipGetFontCollectionFamilyList(GpFontCollection* fontCollection, 
+GpStatus WINGDIPAPI
+GdipGetFontCollectionFamilyList(GpFontCollection* fontCollection,
                         INT numSought, GpFontFamily* gpfamilies[], INT* numFound);
 
-GpStatus WINGDIPAPI 
+GpStatus WINGDIPAPI
 GdipGetFontCollectionFamilyCount(GpFontCollection* fontCollection, INT* numFound);
 
 
@@ -318,6 +320,10 @@ GdipDrawLineI(GpGraphics *graphics, GpPen *pen, INT x1, INT y1,
 GpStatus WINGDIPAPI
 GdipDrawArcI(GpGraphics *graphics, GpPen *pen, INT x, INT y,
     INT width, INT height, REAL startAngle, REAL sweepAngle);
+
+GpStatus WINGDIPAPI
+GdipDrawPieI(GpGraphics *graphics, GpPen *pen, INT x, INT y,
+             INT width, INT height, REAL startAngle, REAL sweepAngle);
 
 GpStatus WINGDIPAPI
 GdipFillPieI(GpGraphics *graphics, GpBrush *brush, INT x, INT y,
@@ -368,8 +374,8 @@ GdipGraphicsClear(GpGraphics *graphics, ARGB color);
 GpStatus WINGDIPAPI
 GdipDrawImageI(GpGraphics *graphics, GpImage *image, INT x, INT y);
 
-GpStatus WINGDIPAPI 
-GdipDrawImageRectI(GpGraphics *graphics, GpImage *image, INT x, INT y, 
+GpStatus WINGDIPAPI
+GdipDrawImageRectI(GpGraphics *graphics, GpImage *image, INT x, INT y,
                    INT width, INT height);
 
 GpStatus WINGDIPAPI
@@ -471,15 +477,25 @@ nk_gdip_fill_rect(short x, short y, unsigned short w,
     }
 }
 
+static BOOL
+SetPoint(POINT *p, LONG x, LONG y)
+{
+    if (!p)
+        return FALSE;
+    p->x = x;
+    p->y = y;
+    return TRUE;
+}
+
 static void
 nk_gdip_fill_triangle(short x0, short y0, short x1,
     short y1, short x2, short y2, struct nk_color col)
 {
-    POINT points[] = {
-        { x0, y0 },
-        { x1, y1 },
-        { x2, y2 },
-    };
+    POINT points[3];
+
+    SetPoint(&points[0], x0, y0);
+    SetPoint(&points[1], x1, y1);
+    SetPoint(&points[2], x2, y2);
 
     GdipSetSolidFillColor(gdip.brush, convert_color(col));
     GdipFillPolygonI(gdip.memory, gdip.brush, points, 3, FillModeAlternate);
@@ -489,12 +505,13 @@ static void
 nk_gdip_stroke_triangle(short x0, short y0, short x1,
     short y1, short x2, short y2, unsigned short line_thickness, struct nk_color col)
 {
-    POINT points[] = {
-        { x0, y0 },
-        { x1, y1 },
-        { x2, y2 },
-        { x0, y0 },
-    };
+    POINT points[4];
+
+    SetPoint(&points[0], x0, y0);
+    SetPoint(&points[1], x1, y1);
+    SetPoint(&points[2], x2, y2);
+    SetPoint(&points[3], x0, y0);
+
     GdipSetPenWidth(gdip.pen, (REAL)line_thickness);
     GdipSetPenColor(gdip.pen, convert_color(col));
     GdipDrawPolygonI(gdip.memory, gdip.pen, points, 4);
@@ -570,12 +587,32 @@ nk_gdip_stroke_curve(struct nk_vec2i p1,
 }
 
 static void
+nk_gdip_fill_arc(short cx, short cy, unsigned short r, float amin, float adelta, struct nk_color col)
+{
+    GdipSetSolidFillColor(gdip.brush, convert_color(col));
+    GdipFillPieI(gdip.memory, gdip.brush, cx - r, cy - r, r * 2, r * 2, amin * (180/M_PI), adelta * (180/M_PI));
+}
+
+static void
+nk_gdip_stroke_arc(short cx, short cy, unsigned short r, float amin, float adelta, unsigned short line_thickness, struct nk_color col)
+{
+    GdipSetPenWidth(gdip.pen, (REAL)line_thickness);
+    GdipSetPenColor(gdip.pen, convert_color(col));
+    GdipDrawPieI(gdip.memory, gdip.pen, cx - r, cy - r, r * 2, r * 2, amin * (180/M_PI), adelta * (180/M_PI));
+}
+
+static void
 nk_gdip_draw_text(short x, short y, unsigned short w, unsigned short h,
     const char *text, int len, GdipFont *font, struct nk_color cbg, struct nk_color cfg)
 {
     int wsize;
     WCHAR* wstr;
-    RectF layout = { (FLOAT)x, (FLOAT)y, (FLOAT)w, (FLOAT)h };
+    RectF layout;
+
+    layout.X = x;
+    layout.Y = y;
+    layout.Width = w;
+    layout.Height = h;
 
     if(!text || !font || !len) return;
 
@@ -636,7 +673,7 @@ nk_gdip_load_image_from_memory(const void *membuf, nk_uint membufSize)
     IStream *stream = SHCreateMemStream((const BYTE*)membuf, membufSize);
     if (!stream)
         return nk_image_id(0);
-    
+
     status = GdipLoadImageFromStream(stream, &image);
     stream->lpVtbl->Release(stream);
 
@@ -672,7 +709,7 @@ nk_gdipfont_create(const char *name, int size)
     return font;
 }
 
-GpFontCollection* 
+GpFontCollection*
 nk_gdip_getCurFontCollection(){
     return gdip.fontCollection[gdip.curFontCollection];
 }
@@ -707,7 +744,7 @@ nk_gdipfont_create_from_file(const WCHAR* filename, int size)
 {
     if( !nk_gdip_getCurFontCollection() )
         if( GdipNewPrivateFontCollection(&gdip.fontCollection[gdip.curFontCollection]) ) return NULL;
-    if( GdipPrivateAddFontFile(nk_gdip_getCurFontCollection(), filename) ) return NULL;    
+    if( GdipPrivateAddFontFile(nk_gdip_getCurFontCollection(), filename) ) return NULL;
     return nk_gdipfont_create_from_collection(size);
 }
 
@@ -724,7 +761,7 @@ nk_gdipfont_get_text_width(nk_handle handle, float height, const char *text, int
 
     (void)height;
     wsize = MultiByteToWideChar(CP_UTF8, 0, text, len, NULL, 0);
-    wstr = (WCHAR*)_alloca(wsize * sizeof(wchar_t));
+    wstr = (WCHAR*)_malloca(wsize * sizeof(wchar_t));
     MultiByteToWideChar(CP_UTF8, 0, text, len, wstr, wsize);
 
     GdipMeasureString(gdip.memory, wstr, wsize, font->handle, &layout, gdip.format, &bbox, NULL, NULL);
@@ -740,95 +777,63 @@ nk_gdipfont_del(GdipFont *font)
 }
 
 static void
-nk_gdip_clipboard_paste(nk_handle usr, struct nk_text_edit *edit)
+nk_gdip_clipboard_paste(nk_handle usr, struct nk_text_edit* edit)
 {
-    HGLOBAL mem;
-    SIZE_T size;
-    LPCWSTR wstr;
-    int utf8size;
-    char* utf8;
     (void)usr;
-
-    if (!IsClipboardFormatAvailable(CF_UNICODETEXT))
-        return;
-    if (!OpenClipboard(NULL))
-        return;
-
-    mem = (HGLOBAL)GetClipboardData(CF_UNICODETEXT);
-    if (!mem) {
+    if (IsClipboardFormatAvailable(CF_UNICODETEXT) && OpenClipboard(NULL))
+    {
+        HGLOBAL mem = GetClipboardData(CF_UNICODETEXT);
+        if (mem)
+        {
+            SIZE_T size = GlobalSize(mem) - 1;
+            if (size)
+            {
+                LPCWSTR wstr = (LPCWSTR)GlobalLock(mem);
+                if (wstr)
+                {
+                    int utf8size = WideCharToMultiByte(CP_UTF8, 0, wstr, (int)(size / sizeof(wchar_t)), NULL, 0, NULL, NULL);
+                    if (utf8size)
+                    {
+                        char* utf8 = (char*)malloc(utf8size);
+                        if (utf8)
+                        {
+                            WideCharToMultiByte(CP_UTF8, 0, wstr, (int)(size / sizeof(wchar_t)), utf8, utf8size, NULL, NULL);
+                            nk_textedit_paste(edit, utf8, utf8size);
+                            free(utf8);
+                        }
+                    }
+                    GlobalUnlock(mem);
+                }
+            }
+        }
         CloseClipboard();
-        return;
     }
-
-    size = GlobalSize(mem) - 1;
-    if (!size) {
-        CloseClipboard();
-        return;
-    }
-
-    wstr = (LPCWSTR)GlobalLock(mem);
-    if (!wstr) {
-        CloseClipboard();
-        return;
-    }
-
-    utf8size = WideCharToMultiByte(CP_UTF8, 0, wstr, (int)(size / sizeof(wchar_t)), NULL, 0, NULL, NULL);
-    if (!utf8size) {
-        GlobalUnlock(mem);
-        CloseClipboard();
-        return;
-    }
-
-    utf8 = (char*)malloc(utf8size);
-    if (!utf8) {
-        GlobalUnlock(mem);
-        CloseClipboard();
-        return;
-    }
-
-    WideCharToMultiByte(CP_UTF8, 0, wstr, (int)(size / sizeof(wchar_t)), utf8, utf8size, NULL, NULL);
-    nk_textedit_paste(edit, utf8, utf8size);
-    free(utf8);
-    GlobalUnlock(mem);
-    CloseClipboard();
 }
 
 static void
-nk_gdip_clipboard_copy(nk_handle usr, const char *text, int len)
+nk_gdip_clipboard_copy(nk_handle usr, const char* text, int len)
 {
-    HGLOBAL mem;
-    wchar_t* wstr;
-    int wsize;
-    (void)usr;
+    if (OpenClipboard(NULL))
+    {
+        int wsize = MultiByteToWideChar(CP_UTF8, 0, text, len, NULL, 0);
+        if (wsize)
+        {
+            HGLOBAL mem = (HGLOBAL)GlobalAlloc(GMEM_MOVEABLE, (wsize + 1) * sizeof(wchar_t));
+            if (mem)
+            {
+                wchar_t* wstr = (wchar_t*)GlobalLock(mem);
+                if (wstr)
+                {
+                    MultiByteToWideChar(CP_UTF8, 0, text, len, wstr, wsize);
+                    wstr[wsize] = 0;
+                    GlobalUnlock(mem);
 
-    if (!OpenClipboard(NULL))
-        return;
-
-    wsize = MultiByteToWideChar(CP_UTF8, 0, text, len, NULL, 0);
-    if (!wsize) {
+                    SetClipboardData(CF_UNICODETEXT, mem);
+                }
+            }
+        }
         CloseClipboard();
-        return;
     }
-
-    mem = (HGLOBAL)GlobalAlloc(GMEM_MOVEABLE, (wsize + 1) * sizeof(wchar_t));
-    if (!mem) {
-        CloseClipboard();
-        return;
-    }
-
-    wstr = (wchar_t*)GlobalLock(mem);
-    if (!wstr) {
-        GlobalFree(mem);
-        CloseClipboard();
-        return;
-    }
-
-    MultiByteToWideChar(CP_UTF8, 0, text, len, wstr, wsize);
-    wstr[wsize] = 0;
-    GlobalUnlock(mem);
-    if (!SetClipboardData(CF_UNICODETEXT, mem))
-        GlobalFree(mem);
-    CloseClipboard();
 }
 
 NK_API struct nk_context*
@@ -844,7 +849,7 @@ nk_gdip_init(HWND hwnd, unsigned int width, unsigned int height)
     GdipCreatePen1(0, 1.0f, UnitPixel, &gdip.pen);
     GdipCreateSolidFill(0, &gdip.brush);
     GdipStringFormatGetGenericTypographic(&gdip.format);
-    GdipSetStringFormatFlags(gdip.format, StringFormatFlagsNoFitBlackBox | 
+    GdipSetStringFormatFlags(gdip.format, StringFormatFlagsNoFitBlackBox |
         StringFormatFlagsMeasureTrailingSpaces | StringFormatFlagsNoWrap |
         StringFormatFlagsNoClip);
 
@@ -870,6 +875,7 @@ nk_gdip_set_font(GdipFont *gdipfont)
 NK_API int
 nk_gdip_handle_event(HWND wnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
+    static int insert_toggle = 0;
     switch (msg)
     {
     case WM_SIZE:
@@ -919,6 +925,7 @@ nk_gdip_handle_event(HWND wnd, UINT msg, WPARAM wparam, LPARAM lparam)
             return 1;
 
         case VK_RETURN:
+        case VK_SEPARATOR:
             nk_input_key(&gdip.ctx, NK_KEY_ENTER, down);
             return 1;
 
@@ -961,6 +968,49 @@ nk_gdip_handle_event(HWND wnd, UINT msg, WPARAM wparam, LPARAM lparam)
         case VK_PRIOR:
             nk_input_key(&gdip.ctx, NK_KEY_SCROLL_UP, down);
             return 1;
+
+        case VK_ESCAPE:
+            nk_input_key(&gdip.ctx, NK_KEY_TEXT_RESET_MODE, down);
+            return 1;
+
+        case VK_INSERT:
+        /* Only switch on release to avoid repeat issues
+         * kind of confusing since we have to negate it but we're already
+         * hacking it since Nuklear treats them as two separate keys rather
+         * than a single toggle state */
+            if (!down) {
+                insert_toggle = !insert_toggle;
+                if (insert_toggle) {
+                    nk_input_key(&gdip.ctx, NK_KEY_TEXT_INSERT_MODE, !down);
+                    /* nk_input_key(&gdip.ctx, NK_KEY_TEXT_REPLACE_MODE, down); */
+                } else {
+                    nk_input_key(&gdip.ctx, NK_KEY_TEXT_REPLACE_MODE, !down);
+                    /* nk_input_key(&gdip.ctx, NK_KEY_TEXT_INSERT_MODE, down); */
+                }
+            }
+            return 1;
+
+        case 'A':
+            if (ctrl) {
+                nk_input_key(&gdip.ctx, NK_KEY_TEXT_SELECT_ALL, down);
+                return 1;
+            }
+            break;
+
+        case 'B':
+            if (ctrl) {
+                nk_input_key(&gdip.ctx, NK_KEY_TEXT_LINE_START, down);
+                return 1;
+            }
+            break;
+
+        case 'E':
+            if (ctrl) {
+                nk_input_key(&gdip.ctx, NK_KEY_TEXT_LINE_END, down);
+                return 1;
+            }
+            break;
+
 
         case 'C':
             if (ctrl) {
@@ -1151,9 +1201,15 @@ nk_gdip_prerender_gui(enum nk_anti_aliasing AA)
             const struct nk_command_image *i = (const struct nk_command_image *)cmd;
             nk_gdip_draw_image(i->x, i->y, i->w, i->h, i->img, i->col);
         } break;
+        case NK_COMMAND_ARC: {
+            const struct nk_command_arc *i = (const struct nk_command_arc *)cmd;
+            nk_gdip_stroke_arc(i->cx, i->cy, i->r, i->a[0], i->a[1], i->line_thickness, i->color);
+        } break;
+        case NK_COMMAND_ARC_FILLED: {
+            const struct nk_command_arc_filled *i = (const struct nk_command_arc_filled *)cmd;
+            nk_gdip_fill_arc(i->cx, i->cy, i->r, i->a[0], i->a[1], i->color);
+        } break;
         case NK_COMMAND_RECT_MULTI_COLOR:
-        case NK_COMMAND_ARC:
-        case NK_COMMAND_ARC_FILLED:
         default: break;
         }
     }

@@ -38,7 +38,7 @@ int main(void)
     struct nk_context *ctx;
 
     WNDCLASSW wc;
-    RECT rect = { 0, 0, UI_WIN_HEIGHT, UI_WIN_WIDTH };
+    RECT rect = { 0, 0, UI_WIN_WIDTH, UI_WIN_HEIGHT };
     DWORD style = WS_OVERLAPPEDWINDOW;
     DWORD exstyle = WS_EX_APPWINDOW;
     HWND wnd;
@@ -58,13 +58,13 @@ int main(void)
     AdjustWindowRectEx(&rect, style, FALSE, exstyle);
 
     wnd = CreateWindowExW(exstyle, wc.lpszClassName, UI_WIN_TITLE_WIN32,
-        style | WS_VISIBLE | WS_POPUP, CW_USEDEFAULT, CW_USEDEFAULT,
+        style | WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT,
         rect.right - rect.left, rect.bottom - rect.top,
         NULL, NULL, wc.hInstance, NULL);
 
     /* GUI */
     ctx = nk_gdip_init(wnd, rect.right, rect.bottom);
-    font = nk_gdipfont_create("微软雅黑", 13);
+    font = nk_gdipfont_create("Arial", 12);
     nk_gdip_set_font(font);
 
     set_style(ctx, THEME_RED);

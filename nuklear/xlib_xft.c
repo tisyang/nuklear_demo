@@ -20,11 +20,10 @@
 #include "nuklear_xlib.h"
 #include "ui.h"
 
-
 #include "style.c"
 #include "ui.c"
 
-#define DTIME           10
+#define DTIME           20
 
 typedef struct XWindow XWindow;
 struct XWindow {
@@ -109,15 +108,16 @@ main(void)
     xw.height = (unsigned int)xw.attr.height;
 
     /* GUI */
+#ifdef NK_XLIB_USE_XFT
     xw.font = nk_xfont_create(xw.dpy, "variable");
     ctx = nk_xlib_init(xw.font, xw.dpy, xw.screen, xw.win,
-#ifdef NK_XLIB_USE_XFT
-                    xw.vis, xw.cmap,
+                       xw.vis, xw.cmap, xw.width, xw.height);
+#else
+    xw.font = nk_xfont_create(xw.dpy, "fixed");
+    ctx = nk_xlib_init(xw.font, xw.dpy, xw.screen, xw.win, xw.width, xw.height);
 #endif
-                    xw.width, xw.height);
 
     set_style(ctx, THEME_RED);
-
     while (running)
     {
         XGetWindowAttributes(xw.dpy, xw.win, &xw.attr);
